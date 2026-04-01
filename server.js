@@ -5,13 +5,12 @@ const crypto = require("crypto");
 const app = express();
 app.use(express.json());
 
-const MONGO_URI = "TON_MONGO_URI";
-const API_SECRET = "TON_SECRET_ULTRA_SECURE";
+const MONGO_URI = "mongodb+srv://<db_username>:<db_password>@cluster0.nus0tgp.mongodb.net/?appName=Cluster0";
+const API_SECRET = "A7mZ#92_kLpX!2026_RBLX_SECURE";
 
-// Connexion DB
 mongoose.connect(MONGO_URI);
 
-// Schema sécurisé
+// 📦 Licence
 const License = mongoose.model("License", {
   key: String,
   userId: Number,
@@ -19,14 +18,16 @@ const License = mongoose.model("License", {
   activated: Boolean
 });
 
-// 🔑 génération clé sécurisée
+// 🔑 clé sécurisée
 function generateKey() {
   return "LIC-" + crypto.randomBytes(6).toString("hex").toUpperCase();
 }
 
-// ======================
-// 💳 WEBHOOK PAYHIP
-// ======================
+/*
+========================
+💳 PAYHIP WEBHOOK
+========================
+*/
 app.post("/webhook", async (req, res) => {
   if (req.body.secret !== API_SECRET) {
     return res.sendStatus(403);
@@ -41,14 +42,16 @@ app.post("/webhook", async (req, res) => {
     activated: false
   });
 
-  console.log("NEW KEY:", key);
+  console.log("🔑 KEY:", key);
 
   res.json({ key });
 });
 
-// ======================
-// 🔐 ACTIVER + VÉRIFIER
-// ======================
+/*
+========================
+🔐 VÉRIFICATION
+========================
+*/
 app.get("/check", async (req, res) => {
   const { key, userId, hwid, secret } = req.query;
 
@@ -60,7 +63,7 @@ app.get("/check", async (req, res) => {
 
   if (!license) return res.send("invalid");
 
-  // ❌ clé déjà liée à un autre user
+  // déjà utilisée
   if (license.activated) {
     if (license.userId != userId || license.hwid != hwid) {
       return res.send("invalid");
@@ -68,14 +71,14 @@ app.get("/check", async (req, res) => {
     return res.send("valid");
   }
 
-  // ✅ première activation
+  // première activation
   license.userId = parseInt(userId);
   license.hwid = hwid;
   license.activated = true;
 
   await license.save();
 
-  return res.send("valid");
+  res.send("valid");
 });
 
-app.listen(3000, () => console.log("🚀 API PRO ONLINE"));
+app.listen(3000, () => console.log("🚀 API ON"));
