@@ -1,35 +1,33 @@
 const express = require("express");
 const mongoose = require("mongoose");
+const crypto = require("crypto");
 
 const app = express();
 app.use(express.json());
 
-// 🔐 CONFIG
 const MONGO_URI = "TON_MONGO_URI";
 const API_SECRET = "TON_SECRET_ULTRA_SECURE";
 
-// 🔗 Connexion DB
+// Connexion DB
 mongoose.connect(MONGO_URI);
 
-// 📦 Schema licence
+// Schema sécurisé
 const License = mongoose.model("License", {
   key: String,
   userId: Number,
+  hwid: String,
   activated: Boolean
 });
 
-// 🔑 Générateur de clé
+// 🔑 génération clé sécurisée
 function generateKey() {
-  return "LIC-" + Math.random().toString(36).substring(2, 10).toUpperCase();
+  return "LIC-" + crypto.randomBytes(6).toString("hex").toUpperCase();
 }
 
-/*
-========================
-💳 PAYHIP WEBHOOK
-========================
-*/
+// ======================
+// 💳 WEBHOOK PAYHIP
+// ======================
 app.post("/webhook", async (req, res) => {
-  // 🔒 sécurité webhook
   if (req.body.secret !== API_SECRET) {
     return res.sendStatus(403);
   }
@@ -39,23 +37,21 @@ app.post("/webhook", async (req, res) => {
   await License.create({
     key,
     userId: null,
+    hwid: null,
     activated: false
   });
 
-  console.log("🔑 Nouvelle clé:", key);
+  console.log("NEW KEY:", key);
 
-  res.json({ success: true, key });
+  res.json({ key });
 });
 
-/*
-========================
-🔐 ACTIVATION LICENCE
-========================
-*/
-app.get("/activate", async (req, res) => {
-  const { key, userId, secret } = req.query;
+// ======================
+// 🔐 ACTIVER + VÉRIFIER
+// ======================
+app.get("/check", async (req, res) => {
+  const { key, userId, hwid, secret } = req.query;
 
-  // 🔒 sécurité API
   if (secret !== API_SECRET) {
     return res.send("unauthorized");
   }
@@ -64,24 +60,22 @@ app.get("/activate", async (req, res) => {
 
   if (!license) return res.send("invalid");
 
-  // ❌ déjà utilisée par un autre
-  if (license.activated && license.userId != userId) {
-    return res.send("invalid");
-  }
-
-  // ✅ première activation
-  if (!license.activated) {
-    license.userId = parseInt(userId);
-    license.activated = true;
-    await license.save();
-  }
-
-  // ✅ bonne licence
-  if (license.userId == userId) {
+  // ❌ clé déjà liée à un autre user
+  if (license.activated) {
+    if (license.userId != userId || license.hwid != hwid) {
+      return res.send("invalid");
+    }
     return res.send("valid");
   }
 
-  res.send("invalid");
+  // ✅ première activation
+  license.userId = parseInt(userId);
+  license.hwid = hwid;
+  license.activated = true;
+
+  await license.save();
+
+  return res.send("valid");
 });
 
-app.listen(3000, () => console.log("🚀 API running"));
+app.listen(3000, () => console.log("🚀 API PRO ONLINE"));
